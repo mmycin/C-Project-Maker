@@ -1,4 +1,4 @@
-## ⚡ C-Template Installer – The Ultimate Rust CLI Tool for Bootstrapping C Projects 
+## ⚡ C-Project-Maker – The Ultimate Rust CLI Tool for Bootstrapping C Projects 
 
 ### **What is this?**
 Ever found yourself **wasting time** setting up the same **C project structure** again and again? Annoyed by manually downloading ZIPs from GitHub, extracting them, and renaming folders? 😩  
