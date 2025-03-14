@@ -35,10 +35,18 @@ fn main() -> AppResult<()> {
         if app.should_quit {
             let config = app.get_config(&os_type);
             if !config.name.is_empty() {
+                // Exit TUI mode before starting the download process
+                disable_raw_mode()?;
+                stdout().execute(LeaveAlternateScreen)?;
+                println!("\n🚀 Creating project: {}", config.name);
+                
                 let zip_file_name = "repo.zip";
                 let repo_url = config::get_template_url(&config.language, &config.os_type);
                 
+                println!("📥 Downloading template...");
                 downloader::download_zip(&repo_url, zip_file_name)?;
+                
+                println!("📦 Extracting files...");
                 extractor::extract_zip(zip_file_name)?;
 
                 let current_dir = std::env::current_dir()?;
@@ -53,8 +61,14 @@ fn main() -> AppResult<()> {
                 };
                 let old_path = current_dir.join(format!("C-Template-{}", branch_name));
                 let new_path = current_dir.join(&config.name);
+                
+                println!("📝 Setting up project structure...");
                 utils::rename_folder(old_path.to_str().unwrap(), new_path.to_str().unwrap())?;
                 utils::delete_file(zip_file_name)?;
+                
+                println!("\n✨ Project {} has been created successfully!", config.name);
+                println!("   Happy coding! 🎉\n");
+                return Ok(());
             }
         }
     }

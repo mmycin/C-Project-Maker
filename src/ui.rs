@@ -55,7 +55,7 @@ impl App {
                             FocusField::ProjectName => FocusField::Language,
                             FocusField::Language => FocusField::ProjectName,
                         };
-                        self.input_mode = InputMode::Normal; // Reset to normal mode when switching fields
+                        // Keep the current input mode when switching fields
                     }
                     // Project name editing
                     (InputMode::Editing, FocusField::ProjectName, KeyCode::Char(c)) => {
@@ -103,6 +103,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         .constraints([
             Constraint::Length(3),
             Constraint::Length(3),
+            Constraint::Length(3),
             Constraint::Min(1),
         ])
         .split(f.size());
@@ -110,12 +111,17 @@ pub fn draw(f: &mut Frame, app: &App) {
     // Project name input
     let input = Paragraph::new(app.project_name.as_str())
         .style(match app.focus_field {
-            FocusField::ProjectName => Style::default().fg(Color::Yellow),
+            FocusField::ProjectName => Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
             _ => Style::default(),
         })
         .block(Block::default()
             .borders(Borders::ALL)
-            .title("Project Name")
+            .title(" 📁 Project Name ")
+            .title_alignment(Alignment::Center)
+            .border_style(match app.focus_field {
+                FocusField::ProjectName => Style::default().fg(Color::Yellow),
+                _ => Style::default(),
+            })
             .border_type(BorderType::Rounded));
     f.render_widget(input, chunks[0]);
 
@@ -133,10 +139,15 @@ pub fn draw(f: &mut Frame, app: &App) {
     let language_select = List::new(language_items)
         .block(Block::default()
             .borders(Borders::ALL)
-            .title("Language")
+            .title(" 🔧 Language ")
+            .title_alignment(Alignment::Center)
+            .border_style(match app.focus_field {
+                FocusField::Language => Style::default().fg(Color::Yellow),
+                _ => Style::default(),
+            })
             .border_type(BorderType::Rounded))
-        .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black))
-        .highlight_symbol(">> ")
+        .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black).add_modifier(Modifier::BOLD))
+        .highlight_symbol("➜ ")
         .style(match app.focus_field {
             FocusField::Language => Style::default().fg(Color::Yellow),
             _ => Style::default(),
@@ -147,13 +158,25 @@ pub fn draw(f: &mut Frame, app: &App) {
         &mut ListState::default().with_selected(Some(language_index)),
     );
 
+    // Status line
+    let status = match app.input_mode {
+        InputMode::Normal => "🔍 Normal Mode",
+        InputMode::Editing => "✏️  Editing Mode",
+    };
+    let status_widget = Paragraph::new(status)
+        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded));
+    f.render_widget(status_widget, chunks[2]);
+
     // Help text
     let help_text = match app.input_mode {
-        InputMode::Normal => "Press 'e' to edit | 'q' to quit | Tab to switch focus | ←/→ to change language",
-        InputMode::Editing => "Press Enter to finish editing",
+        InputMode::Normal => "[E]dit | [Q]uit | [Tab] Switch Focus | [←/→] Change Language",
+        InputMode::Editing => "[Enter] Finish Editing | [Esc] Cancel",
     };
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::Gray))
-        .block(Block::default().borders(Borders::ALL));
-    f.render_widget(help, chunks[2]);
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded));
+    f.render_widget(help, chunks[3]);
 }
