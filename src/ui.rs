@@ -3,12 +3,13 @@ use ratatui::{prelude::*, widgets::*};
 use crate::config::{ProjectConfig, ProjectLanguage, OsType};
 use crate::error::AppResult;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Copy)]
 pub enum InputMode {
     Normal,
     Editing,
 }
 
+#[derive(PartialEq)]
 pub enum FocusField {
     ProjectName,
     Language,
@@ -124,25 +125,35 @@ pub fn draw(f: &mut Frame, app: &App) {
     f.render_widget(title_widget, chunks[0]);
 
     // Description
-    let description = "A powerful C/C++ project generator by Mycin\nCreate professional C/C++ projects with ease\nUse [Tab] to navigate, [E] to edit, and arrow keys to select";
+    let description = "A powerful C/C++ project generator by Mycin\nCreate professional C/C++ projects with ease\nUse [Tab] to navigate, [E] to edit, arrow keys to select and [Q] to confirm.\n[E] to edit, [Q] to quit, [Tab] to switch focus, [←/→] to change language.\nUse [Enter] to confirm name or selection, [Esc] to cancel.\nUse A-Z, 0-9, - or _ for project name.\nUse [←/→] to select language.\n";
     let desc_widget = Paragraph::new(description)
         .style(Style::default().fg(Color::White))
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded));
     f.render_widget(desc_widget, chunks[1]);
 
-    // Project name input
-    let input = Paragraph::new(app.project_name.as_str())
-        .style(match app.focus_field {
-            FocusField::ProjectName => Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-            _ => Style::default(),
-        })
+    // Project name input with cursor and enhanced visuals
+    let input_content = if app.input_mode == InputMode::Editing && app.focus_field == FocusField::ProjectName {
+        format!("{}_", app.project_name)
+    } else {
+        app.project_name.clone()
+    };
+
+    let input_style = match (app.input_mode, &app.focus_field) {
+        (InputMode::Editing, FocusField::ProjectName) => Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+        (_, FocusField::ProjectName) => Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        _ => Style::default(),
+    };
+
+    let input = Paragraph::new(input_content)
+        .style(input_style)
         .block(Block::default()
             .borders(Borders::ALL)
             .title(" 📁 Project Name ")
             .title_alignment(Alignment::Center)
-            .border_style(match app.focus_field {
-                FocusField::ProjectName => Style::default().fg(Color::Yellow),
+            .border_style(match (app.input_mode, &app.focus_field) {
+                (InputMode::Editing, FocusField::ProjectName) => Style::default().fg(Color::Green),
+                (_, FocusField::ProjectName) => Style::default().fg(Color::Yellow),
                 _ => Style::default(),
             })
             .border_type(BorderType::Rounded));
@@ -169,7 +180,12 @@ pub fn draw(f: &mut Frame, app: &App) {
                 _ => Style::default(),
             })
             .border_type(BorderType::Rounded))
-        .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black).add_modifier(Modifier::BOLD))
+        .highlight_style(
+            match app.focus_field {
+                FocusField::Language => Style::default().bg(Color::Yellow).fg(Color::Black).add_modifier(Modifier::BOLD),
+                _ => Style::default().bg(Color::DarkGray).fg(Color::White)
+            }
+        )
         .highlight_symbol("➜ ")
         .style(match app.focus_field {
             FocusField::Language => Style::default().fg(Color::Yellow),
@@ -181,21 +197,24 @@ pub fn draw(f: &mut Frame, app: &App) {
         &mut ListState::default().with_selected(Some(language_index)),
     );
 
-    // Status line with mode indicator
-    let status = match app.input_mode {
-        InputMode::Normal => "🔍 Normal Mode",
-        InputMode::Editing => "✏️  Editing Mode",
+    // Status line with enhanced mode indicator
+    let (status, status_color) = match app.input_mode {
+        InputMode::Normal => ("🔍 Normal Mode", Color::Cyan),
+        InputMode::Editing => ("✏️  Editing Mode", Color::Green),
     };
     let status_widget = Paragraph::new(status)
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(Style::default().fg(status_color).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded));
     f.render_widget(status_widget, chunks[4]);
 
-    // Help text with improved visibility
+    // Help text with improved visibility and context-aware instructions
     let help_text = match app.input_mode {
         InputMode::Normal => "[E]dit | [Q]uit | [Tab] Switch Focus | [←/→] Change Language",
-        InputMode::Editing => "[Enter] Finish Editing | [Esc] Cancel",
+        InputMode::Editing => match app.focus_field {
+            FocusField::ProjectName => "[Enter] Confirm Name | [Esc] Cancel | Use A-Z, 0-9, - or _",
+            FocusField::Language => "[Enter] Confirm Selection | [Esc] Cancel | Use [←/→] to Select",
+        },
     };
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::Gray))

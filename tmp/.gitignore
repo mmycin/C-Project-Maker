@@ -1,6 +1,0 @@
-bin/
-build/
-target/
-*.exe
-!tcc/*.exe
-.env
