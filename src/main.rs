@@ -1,27 +1,66 @@
+mod config;
 mod downloader;
+mod error;
 mod extractor;
+mod ui;
 mod utils;
 
-use std::env;
-use std::io;
+use crossterm::event;
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::ExecutableCommand;
+use error::AppResult;
+use ratatui::prelude::*;
+use std::io::stdout;
 
-fn main() -> io::Result<()> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage: cargo run <folder-name>");
-        return Ok(());
+fn main() -> AppResult<()> {
+    // Setup terminal
+    enable_raw_mode()?;
+    stdout().execute(EnterAlternateScreen)?;
+    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
+
+    // Create app state
+    let mut app = ui::App::new();
+    let os_type = config::detect_os();
+
+    // Main loop
+    while !app.should_quit {
+        terminal.draw(|f| ui::draw(f, &app))?;
+
+        if event::poll(std::time::Duration::from_millis(50))? {
+            if let Ok(event) = event::read() {
+                app.handle_event(event)?;
+            }
+        }
+
+        if app.should_quit {
+            let config = app.get_config(&os_type);
+            if !config.name.is_empty() {
+                let zip_file_name = "repo.zip";
+                let repo_url = config::get_template_url(&config.language, &config.os_type);
+                
+                downloader::download_zip(&repo_url, zip_file_name)?;
+                extractor::extract_zip(zip_file_name)?;
+
+                let current_dir = std::env::current_dir()?;
+                let branch_name = if repo_url.contains("/windows-c.zip") {
+                    "windows-c"
+                } else if repo_url.contains("/windows-cpp.zip") {
+                    "windows-cpp"
+                } else if repo_url.contains("/linux-c.zip") {
+                    "linux-c"
+                } else {
+                    "linux-cpp"
+                };
+                let old_path = current_dir.join(format!("C-Template-{}", branch_name));
+                let new_path = current_dir.join(&config.name);
+                utils::rename_folder(old_path.to_str().unwrap(), new_path.to_str().unwrap())?;
+                utils::delete_file(zip_file_name)?;
+            }
+        }
     }
-    let folder_name = &args[1];
 
-    let zip_file_name = "repo.zip";
-    let repo_url = "https://github.com/mmycin/C-Template/archive/refs/heads/master.zip";
-
-    downloader::download_zip(repo_url, zip_file_name)?;
-    extractor::extract_zip(zip_file_name)?;
-
-    utils::rename_folder("C-Template-master", folder_name)?;
-    utils::delete_file(zip_file_name)?;
-
-    println!("Process completed successfully!");
+    // Restore terminal
+    disable_raw_mode()?;
+    stdout().execute(LeaveAlternateScreen)?;
     Ok(())
 }
